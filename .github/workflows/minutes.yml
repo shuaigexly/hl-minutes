@@ -1,0 +1,41 @@
+name: Hyperliquid Minutes Collector
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # 每天 UTC 00:00 自动运行
+  workflow_dispatch: # 手动运行入口（很重要）
+  push:
+    branches:
+      - main # 当你更新代码时，会自动执行一次
+
+permissions:
+  contents: write # 允许自动提交 data/ 和 checkpoint.json
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run fetch_minutes
+        run: |
+          python fetch_minutes.py
+
+      - name: Commit and Push data updates
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add data checkpoint.json || echo "nothing to add"
+          git commit -m "Update minutes data $(date)" || echo "nothing to commit"
+          git push || echo "nothing to push"
