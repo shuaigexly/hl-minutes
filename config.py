@@ -24,6 +24,6 @@ CHECKPOINT_FILE = "checkpoint.json"
 CHUNK_HOURS = 24
 
 # API 调用之间的休眠（秒）
-API_SLEEP = 0.25
+API_SLEEP = 1.0
 
 YEARS_BACK = 3
