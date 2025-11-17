@@ -26,4 +26,4 @@ CHUNK_HOURS = 24
 # API 调用之间的休眠（秒）
 API_SLEEP = 0.25
 
-YEAR_BACK = 3
+YEARS_BACK = 3
