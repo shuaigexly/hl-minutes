@@ -1,10 +1,11 @@
 import os
 import time
 import json
+import random
 import pandas as pd
 from datetime import datetime, timedelta
 from hyperliquid.info import Info
-
+from hyperliquid.utils.error import ClientError
 from config import (
     COINS,
     INTERVALS,
@@ -30,6 +31,31 @@ def load_checkpoint():
 def save_checkpoint(ckpt):
     with open(CHECKPOINT_FILE, "w") as f:
         json.dump(ckpt, f, indent=2)
+
+def safe_call_with_retry(func, max_retries=10, **kwargs):
+    """
+    通用重试包装：
+    - 专门处理 Hyperliquid 的 429 限流错误
+    - 其他错误直接抛出
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            # 正常调用，比如 func(name=..., interval=..., startTime=..., endTime=...)
+            return func(**kwargs)
+
+        except ClientError as e:
+            # 429：rate limit
+            if getattr(e, "status_code", None) == 429:
+                # 指数退避，最多等到 30 秒
+                sleep_time = min(5 * attempt, 30) + random.uniform(0, 1)
+                print(f"⚠️  收到 429 限流，第 {attempt}/{max_retries} 次重试，休眠 {sleep_time:.2f} 秒...")
+                time.sleep(sleep_time)
+                continue
+
+            # 其他状态码，直接抛出（说明不是限流，是别的问题）
+            raise
+
+    raise RuntimeError("连续多次因 429 限流失败，放弃本次区间。")
 
 def save_parquet_incremental(path, df_new):
     # 强制把 t / T 转成 int，避免 datetime 类型混入
@@ -80,12 +106,14 @@ def fetch_all():
 
                 print(f"⏱ {coin} {interval} | {datetime.utcfromtimestamp(start_ms/1000)} → {datetime.utcfromtimestamp(end_ms/1000)}")
 
-                data = info.candles_snapshot(
+                data = safe_call_with_retry(
+                    info.candles_snapshot,
                     name=coin,
                     interval=interval,
-                    startTime=start_ms,
-                    endTime=end_ms
+                    startTime=int(start_ms),
+                    endTime=int(end_ms),
                 )
+
 
                 if data:
                     df = pd.DataFrame(data)
