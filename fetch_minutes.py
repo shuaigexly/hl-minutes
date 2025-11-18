@@ -16,6 +16,50 @@ from config import (
     YEARS_BACK,
 )
 
+def get_available_perp_coins(info):
+    """
+    自动检测 Hyperliquid 永续合约的全部币种。
+    如果 config.COINS 手动指定，则优先使用。
+    否则取成交量前20的主流币。
+    """
+    from config import COINS as CONFIG_COINS
+
+    # 1. 手动指定（优先级最高）
+    if CONFIG_COINS is not None:
+        print(f"📝 使用 config.py 手动指定的币种: {CONFIG_COINS}")
+        return CONFIG_COINS
+
+    # 2. 自动模式：获取成交量最多的前20币种
+    print("🔍 COINS=None，自动模式：正在筛选成交量前20币种...")
+    return get_top_volume_coins(info, top_n=20)
+
+
+def get_top_volume_coins(info, top_n=20):
+    """
+    自动获取 Hyperliquid 永续合约中成交量前 top_n 的主流币种。
+    使用 meta_and_asset_ctxs() 中的 dayNtlVlm（每日名义成交量）。
+    """
+    print("🔍 正在加载全部币种的成交量信息... (meta_and_asset_ctxs)")
+
+    meta, asset_ctxs = info.meta_and_asset_ctxs()
+
+    volume_list = []
+    for asset, ctx in zip(meta["universe"], asset_ctxs):
+        name = asset["name"]
+        vol = float(ctx["dayNtlVlm"])
+        volume_list.append((name, vol))
+
+    # 按成交量排序
+    volume_list.sort(key=lambda x: x[1], reverse=True)
+
+    top = [c for c, v in volume_list[:top_n]]
+
+    print(f"🔥 成交量前 {top_n} 的币种：")
+    print(top)
+
+    return top
+
+
 info = Info(skip_ws=True)
 
 # ----------------------------
@@ -89,6 +133,7 @@ def fetch_all():
     now_ms = int(time.time() * 1000)
     chunk_ms = CHUNK_HOURS * 3600 * 1000
 
+    COINS = get_available_perp_coins(info)
     for coin in COINS:
         for interval in INTERVALS:
 
